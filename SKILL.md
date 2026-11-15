@@ -33,7 +33,11 @@ Run `python scripts/inventory.py /absolute/repo` for read-only candidate paths a
 
 Read all applicable chapter references below and [modern supplement](references/modern-checks.md). Enumerate every check ID using `python scripts/validate_report.py --list-checks`. Start a coverage record for ALL IDs. Assign `pass`, `fail`, `unknown` or `not_applicable` with evidence/reason. Domain or framework-specific checks may be N/A, but require an explicit applicability explanation.
 
-Use book references in chapter order on the first full audit. On targeted follow-ups, load only relevant references and mark the report scope as partial; do not imply a full review. Chapter 9 consolidates concepts; do not count repeated evidence as independent assurance.
+Use book references in chapter order on the first full audit. On targeted follow-ups, load only relevant references, set `scope.mode` to `targeted` and enumerate the selected IDs in `scope.check_ids`; do not imply a full review. Chapter 9 consolidates concepts; do not count repeated evidence as independent assurance.
+
+Track `scope.completion` separately from mode: `incomplete` while inspection remains, `blocked` only after inspection leaves genuine missing-artifact/runtime blockers, or `complete` when no in-scope unknown remains. Neither blocked nor complete permits `not_inspected`. Completion describes checklist disposition, not runtime assurance or operator health.
+
+For every unknown, record a structured `resolution`: category (`not_inspected`, `missing_artifact`, `requires_runtime`, or `out_of_scope`), `inspected_evidence`, `missing_requirement`, and `next_action`. Do not copy a generic reason across uninspected checks. Record each attempted probe and its result, the specific missing requirement, and the next verification action. Missing-artifact/runtime blockers require nonempty inspected evidence; out-of-scope is only for IDs excluded by an explicit targeted scope. Inspect accessible companion delivery repositories/artifacts before declaring them missing, identifying each separately by repository/revision (SHA) in the evidence. Do not cross authorization boundaries or mutate a cluster to resolve an unknown.
 
 ### 3. Trace behavior, not keywords
 
@@ -49,7 +53,7 @@ Record exact commands, environment, exit status and artifacts. If not run, say `
 
 ### 5. Produce evidence-gated output
 
-Use [report format](references/report-format.md). Prioritize loss of data, privilege-boundary violations and irrecoverable wedges above style. Each finding needs a check ID, severity, applicable contract, code/manifest location, failure scenario, evidence, confidence, minimal remediation and verification criterion. Separate confirmed defects, risks requiring validation and optional improvements. Never declare unsupported SDK preferences as defects.
+Use [report format](references/report-format.md). Prioritize loss of data, privilege-boundary violations and irrecoverable wedges above style. Each finding needs all affected check IDs (`check_ids`, so deduplication does not hide failed controls), severity, applicable contract, code/manifest location, failure scenario, evidence, confidence, minimal remediation and verification criterion. Separate confirmed defects, risks requiring validation and optional improvements. Never declare unsupported SDK preferences as defects.
 
 Produce `audit.md` for humans and `audit.json` for coverage. Validate with `python scripts/validate_report.py audit.json`. This validates report completeness and shape only; it cannot prove findings or operator correctness. A report with failures can be a valid, complete audit.
 

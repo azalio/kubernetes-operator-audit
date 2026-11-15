@@ -1,4 +1,14 @@
-# Validation results — initial release
+# Validation results
+
+## Completion-contract enhancement (2026-11-15)
+
+- RED observed before each implementation slice: reason-only unknown accepted; invalid completion/targeted scope accepted; multi-check finding rejected and malformed enum fields raised `TypeError`.
+- GREEN: `python3 -m unittest discover -s /absolute/skill/scripts -p 'test*.py' -v` — all 17 tests passed. Added completion/category matrix, targeted exclusions, blocker details, deduplicated finding linkage, legacy singular linkage, and malformed-field diagnostics. Existing inventory tests still pass.
+- `ruff check --isolated /absolute/skill/scripts`, `pyflakes /absolute/skill/scripts`, `pyright /absolute/skill/scripts`, and `git diff --check` passed. No repository lint/type configuration was present. Pyright 1.1.409 emitted an update-availability notice for 1.1.414, not a code diagnostic; no tool installation was changed.
+- Catalog remains 88 unique IDs with the same four statuses. Validation enforces report structure, not evidence truth, genuine blocker provenance, or runtime correctness. No operator code or cluster was changed.
+- The initial-release reasoning evaluation below predates the required completion/resolution fields; its reports were not rerun against the new contract.
+
+## Initial release
 
 ## What was actually exercised
 
