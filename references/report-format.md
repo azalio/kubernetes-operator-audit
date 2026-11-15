@@ -22,21 +22,49 @@ Severity is not confidence. `confirmed`, `probable`, `needs_validation` describe
 ## Machine report: audit.json
 
 Top-level keys:
-- `scope`: object containing nonempty `repository`, `revision`, `mode` (full or targeted), and `limitations` array. Use an explicit unavailable revision string rather than invent a commit.
-- `checks`: array with exactly one record for every check ID from `validate_report.py --list-checks`, even in targeted mode (out-of-scope checks are unknown with that reason, not N/A).
+- `scope`: object containing nonempty `repository`, `revision`, `mode` (`full` or `targeted`), `completion` (`incomplete`, `blocked`, or `complete`), and `limitations` array of nonempty strings (may be empty). Use an explicit unavailable revision string rather than invent a commit. Targeted mode additionally requires `check_ids`: a nonempty array of unique catalog IDs selected for inspection; full mode covers the entire catalog.
+- `checks`: array with exactly one record for every check ID from `validate_report.py --list-checks`, even in targeted mode (excluded checks must be `unknown` with resolution category `out_of_scope`, not N/A). The 88 IDs and four statuses are unchanged.
 - `findings`: array of finding objects.
 - `tests`: array of test records (may be empty for static-only audits).
 
 Check record:
 ```json
-{"id":"M-02","status":"unknown","reason":"External cleanup implementation not supplied","evidence":[]}
+{
+  "id":"M-02", "status":"unknown",
+  "reason":"External cleanup implementation not supplied", "evidence":[],
+  "resolution":{
+    "category":"missing_artifact",
+    "inspected_evidence":["inventory.json: controller sources absent from the supplied archive"],
+    "missing_requirement":"Controller source at the audited revision",
+    "next_action":"Obtain that revision and trace cleanup retries and ownership checks"
+  }
+}
 ```
-`pass` and `fail` require nonempty `evidence` strings naming inspected file:line ranges or test artifacts. `unknown` and `not_applicable` require a reason; do not use N/A to hide an uninspected applicable area. `fail` must have a linked finding.
+Every check requires a nonempty `reason`. `pass` and `fail` require nonempty `evidence` strings naming inspected file:line ranges or test artifacts. `not_applicable` requires an applicability explanation; do not use N/A to hide an uninspected applicable area. `fail` must have a linked finding.
+
+Every `unknown` requires a `resolution` object; a generic reason alone is invalid:
+
+| Field | Contract |
+| --- | --- |
+| `category` | `not_inspected`, `missing_artifact`, `requires_runtime`, or `out_of_scope` |
+| `inspected_evidence` | Array of nonempty strings describing attempted probes and results; nonempty for `missing_artifact` and `requires_runtime`, may be empty for the other categories |
+| `missing_requirement` | Nonempty string identifying what is needed to resolve this check |
+| `next_action` | Nonempty string describing the next concrete inspection/verification action |
+
+`out_of_scope` is valid only in targeted mode for an ID absent from `scope.check_ids`. Explain the exclusion and what scope expansion would permit inspection. Before declaring an artifact missing, inspect accessible companion delivery artifacts and identify their repository/revision separately in the evidence. A blocker describes an actual unavailable prerequisite or required runtime observation, not work the auditor has yet to perform.
+
+| `scope.completion` | Gate |
+| --- | --- |
+| `incomplete` | Inspection remains; structured unknowns allowed |
+| `blocked` | No `not_inspected`; at least one in-scope `missing_artifact` or `requires_runtime` unknown with inspected evidence |
+| `complete` | No `not_inspected` and no in-scope unknown; targeted exclusions remain allowed |
+
+Completion is independent of mode, runtime assurance and pass/fail. A complete audit may contain failures; a full-mode report may still be incomplete. The validator checks these structural gates, not whether evidence or a claimed blocker is true.
 
 Finding record (illustrative schema, not a discovered defect):
 ```json
 {
-  "id":"F-001", "check_id":"M-02", "severity":"high",
+  "id":"F-001", "check_ids":["M-02", "M-03"], "severity":"high",
   "title":"Cleanup finalizer removed before cleanup completes",
   "location":"controllers/example.go:80-94",
   "scenario":"Delete the CR while the external API is unavailable",
@@ -46,6 +74,8 @@ Finding record (illustrative schema, not a discovered defect):
   "verification":"Regression test: failed cleanup retains finalizer, recovery removes it"
 }
 ```
+
+`check_ids` is a nonempty array of unique catalog IDs. Link every affected failed control to the deduplicated finding. The legacy singular `check_id` is also accepted, but never supply both fields.
 
 Test record:
 ```json

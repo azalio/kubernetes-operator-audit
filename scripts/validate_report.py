@@ -8,7 +8,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 ID = re.compile(r'(?m)^#{2,4}\s+(B\d{2}-\d{2}|M-\d{2})\b')
-STATES = {'pass', 'fail', 'unknown', 'not_applicable'}
+STATES = ('pass', 'fail', 'unknown', 'not_applicable')
 
 
 def catalog(root=ROOT):
@@ -39,6 +39,9 @@ def validate(doc, expected):
     errors = []
     if not isinstance(doc, dict):
         return ['report must be an object']
+    expected = set(expected)
+    completion, mode, in_scope = None, None, expected
+    blockers = []
     scope = doc.get('scope')
     if not isinstance(scope, dict):
         errors.append('scope must be an object')
@@ -46,8 +49,17 @@ def validate(doc, expected):
         for key in ('repository', 'revision'):
             if not text(scope.get(key)):
                 errors.append('scope.' + key + ' required')
-        if scope.get('mode') not in {'full', 'targeted'}:
+        mode, completion = scope.get('mode'), scope.get('completion')
+        if mode not in ('full', 'targeted'):
             errors.append('scope.mode must be full or targeted')
+        if completion not in ('incomplete', 'blocked', 'complete'):
+            errors.append('scope.completion must be incomplete, blocked or complete')
+        if mode == 'targeted':
+            ids = scope.get('check_ids')
+            if not isinstance(ids, list) or not evidence(ids) or len(set(ids)) != len(ids) or not set(ids) <= expected:
+                errors.append('scope.check_ids must be a nonempty array of unique catalog IDs')
+            else:
+                in_scope = set(ids)
         if not isinstance(scope.get('limitations'), list) or not all(text(x) for x in scope['limitations']):
             errors.append('scope.limitations must be an array of strings')
     checks = doc.get('checks')
@@ -59,7 +71,7 @@ def validate(doc, expected):
             errors.append('check %d must be an object' % i)
             continue
         key, status = check.get('id'), check.get('status')
-        if not text(key):
+        if not isinstance(key, str) or not key.strip():
             errors.append('check ID required')
             continue
         seen.append(key)
@@ -67,11 +79,40 @@ def validate(doc, expected):
             errors.append(key + ': invalid status')
         if not text(check.get('reason')):
             errors.append(key + ': reason required')
-        if status in {'pass', 'fail'} and not evidence(check.get('evidence')):
+        if status in ('pass', 'fail') and not evidence(check.get('evidence')):
             errors.append(key + ': pass/fail requires evidence')
+        if status == 'unknown':
+            resolution = check.get('resolution')
+            if not isinstance(resolution, dict):
+                errors.append(key + ': unknown requires resolution object')
+            else:
+                if resolution.get('category') not in ('not_inspected', 'missing_artifact', 'requires_runtime', 'out_of_scope'):
+                    errors.append(key + ': invalid resolution category')
+                inspected = resolution.get('inspected_evidence')
+                if not isinstance(inspected, list) or not all(text(x) for x in inspected):
+                    errors.append(key + ': inspected_evidence must be an array of strings')
+                for field in ('missing_requirement', 'next_action'):
+                    if not text(resolution.get(field)):
+                        errors.append(key + ': resolution.' + field + ' required')
+                category = resolution.get('category')
+                if category in ('missing_artifact', 'requires_runtime'):
+                    if not evidence(inspected):
+                        errors.append(key + ': blocker requires inspected evidence')
+                    if key in in_scope:
+                        blockers.append(key)
+                if category == 'out_of_scope' and (mode != 'targeted' or key in in_scope):
+                    errors.append(key + ': out_of_scope requires targeted scope excluding this ID')
+                if completion in ('blocked', 'complete') and category == 'not_inspected':
+                    errors.append(key + ': not_inspected prevents blocked/complete')
+            if completion == 'complete' and key in in_scope:
+                errors.append(key + ': in-scope unknown prevents complete')
+        if key not in in_scope and (status != 'unknown' or not isinstance(check.get('resolution'), dict)
+                                    or check['resolution'].get('category') != 'out_of_scope'):
+            errors.append(key + ': excluded check must be unknown/out_of_scope')
         if status == 'fail':
             failed.add(key)
-    expected = set(expected)
+    if completion == 'blocked' and not blockers:
+        errors.append('blocked requires an in-scope missing_artifact or requires_runtime unknown')
     if set(seen) != expected:
         errors.append('coverage mismatch; missing=%s extra=%s' % (sorted(expected-set(seen)), sorted(set(seen)-expected)))
     if len(seen) != len(set(seen)):
@@ -90,13 +131,16 @@ def validate(doc, expected):
                     errors.append('finding.' + key + ' required')
             if text(f.get('id')):
                 finding_ids.append(f['id'])
-            if f.get('check_id') not in expected:
-                errors.append('finding check_id not in catalog')
+            ids = f.get('check_ids') if 'check_ids' in f else [f.get('check_id')]
+            if not isinstance(ids, list) or not evidence(ids) or len(set(ids)) != len(ids) or not set(ids) <= expected:
+                errors.append('finding check_ids must contain unique catalog IDs')
             else:
-                linked.add(f['check_id'])
-            if f.get('severity') not in {'critical', 'high', 'medium', 'low', 'info'}:
+                linked.update(ids)
+            if 'check_ids' in f and 'check_id' in f:
+                errors.append('finding must use check_ids or check_id, not both')
+            if f.get('severity') not in ('critical', 'high', 'medium', 'low', 'info'):
                 errors.append('invalid severity')
-            if f.get('confidence') not in {'confirmed', 'probable', 'needs_validation'}:
+            if f.get('confidence') not in ('confirmed', 'probable', 'needs_validation'):
                 errors.append('invalid confidence')
             if not evidence(f.get('evidence')):
                 errors.append('finding evidence required')
@@ -118,7 +162,7 @@ def validate(doc, expected):
             if status == 'not_run':
                 if not text(t.get('reason')):
                     errors.append('not_run test needs reason')
-            elif status in {'passed', 'failed'}:
+            elif status in ('passed', 'failed'):
                 code = t.get('exit_code')
                 if type(code) is not int or (status == 'passed' and code != 0) or (status == 'failed' and code == 0):
                     errors.append('test exit code contradicts status')
