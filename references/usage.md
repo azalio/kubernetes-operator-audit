@@ -30,6 +30,8 @@ Use kubernetes-operator-audit to review only the v1beta1 -> v1 CRD migration. Ve
 
 ## Output expectations
 
+Review one chapter per fresh context and persist its partial report before moving on. Independent chapters may run concurrently after the common contract is established; chapter 9 consolidates their results last. Use `python scripts/chapter.py plan` for ownership, `python scripts/chapter.py context N` for one chapter's rules, and `python scripts/chapter.py validate N chapters/chNN.json` for its partial report. See [chapter execution](chapter-workflow.md) for delegation, context-reset fallback, progress and final synthesis. Do not load all chapter references at once or ask each worker to emit all 88 controls.
+
 A full audit has coverage records for every catalog check, but not necessarily a runtime result for every check. Unsupported claims remain unknown. Findings cite implementation or rendered manifests and describe a concrete failure path. Missing OLM, Go, custom finalizers or backup features are not automatically defects.
 
-The included fixtures exercise review reasoning, not a live Kubernetes cluster. There is no universal correctness guarantee and no claim of testing across every framework/model. The source PDF and full extracted book text are not included.
+The included fixtures exercise review reasoning, not a live Kubernetes cluster. There is no universal correctness guarantee and no claim of testing across every framework/model.

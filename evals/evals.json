@@ -1,0 +1,112 @@
+{
+  "skill_name": "kubernetes-operator-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "external-database",
+      "prompt": "Review the supplied controller and deployment excerpts for reachable correctness and isolation defects. Treat the excerpts as incomplete and distinguish proven paths from missing configuration.",
+      "expected_output": "Evidence-backed allocation, deletion, readiness and RBAC findings with bounded concurrency claims.",
+      "files": [
+        "assets/evaluation/case-a/controller.go",
+        "assets/evaluation/case-a/deployment.yaml"
+      ],
+      "assertions": [
+        "Finds repeated paid allocation, including crash after creation but before status persistence.",
+        "Finds ignored cleanup failure and removal of foreign finalizers; notes missing persisted cleanup protection in the shown path without assuming unseen code.",
+        "Finds premature Ready and effective wildcard RBAC through the supplied binding.",
+        "Explains replica/rollout side-effect risk without claiming an observed split-brain incident.",
+        "Cites file/line evidence and does not claim compilation, deployment or runtime success."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "helm-architecture",
+      "prompt": "Review only the supplied architecture contract. Identify applicable obligations and what cannot be established from these artifacts.",
+      "expected_output": "Scoped architecture review with explicit implementation unknowns and no invented universal framework requirements.",
+      "files": [
+        "assets/evaluation/case-b/contract.md"
+      ],
+      "assertions": [
+        "Does not require Go, OLM, a custom finalizer or a backup feature for the stated contract.",
+        "Leaves reconciliation, rendered permissions and runtime correctness unverified.",
+        "Treats rolling-update overlap as an open question rather than a proven defect.",
+        "Cites contract evidence and does not invent executable tests or implementation behavior."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "storage-migration",
+      "prompt": "Review the supplied upgrade procedure against its lossless-upgrade promise. Identify unsafe transitions and the evidence needed to validate a replacement procedure.",
+      "expected_output": "Semantic-conversion, storage-migration, version-retirement and test-fidelity findings.",
+      "files": [
+        "assets/evaluation/case-c/upgrade.md"
+      ],
+      "assertions": [
+        "Identifies None conversion as incompatible with the duration-string to integer-seconds change.",
+        "Explains that changing storage flags or storedVersions does not rewrite existing objects.",
+        "Finds premature retirement of the old API and requires compatibility/migration verification.",
+        "Explains why fake-only tests cannot establish API-server upgrade correctness and avoids inventing observed data loss or a version-independent migration API."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "admission-mutation",
+      "prompt": "Review both supplied admission implementations against their stated contract. Separate defects in each alternative from verification that requires missing deployment or integration context.",
+      "expected_output": "MutateA defect, correct bounded assessment of MutateB, and admission-specific verification proposals.",
+      "files": [
+        "assets/evaluation/case-d/webhook.go"
+      ],
+      "assertions": [
+        "Finds duplicate sidecar insertion in MutateA on reinvocation or pre-existing sidecar, with invalid-Pod consequences.",
+        "Recognizes MutateB as idempotent for the stated insertion contract rather than repeating the MutateA finding against it.",
+        "Proposes repeated-application and interaction/final-object tests without assuming webhook ordering or blindly changing failurePolicy.",
+        "Cites source lines and keeps TLS, arbitrary webhook composition and live admission results unverified."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "desired-set-shrink",
+      "prompt": "Review the supplied reconciliation decision path against the Website API contract, including supported configuration transitions.",
+      "expected_output": "Stale Ingress exposure finding with safe cleanup and transition-test recommendations.",
+      "files": [
+        "assets/evaluation/case-e/controller.go"
+      ],
+      "assertions": [
+        "Finds that the true-to-false transition leaves the Ingress active while the Website survives.",
+        "Explains why owner-reference garbage collection does not implement this transition.",
+        "Recommends owner-checked pruning with a true-to-false regression scenario and does not require a custom finalizer for this GC-only fixture.",
+        "Cites source lines and does not claim a running cluster or an observed external exposure incident."
+      ]
+    },
+    {
+      "id": 6,
+      "name": "cache-scale",
+      "prompt": "Review the supplied cached-client design and scale claim. Verify framework-dependent conclusions against the pinned dependency and separate static conclusions from measurements that have not been supplied.",
+      "expected_output": "Pinned-source cache-scope finding with bounded memory claims and compatible verification/remediation options.",
+      "files": [
+        "assets/evaluation/case-f/cache.md"
+      ],
+      "assertions": [
+        "Verifies controller-runtime v0.20.4 behavior using pinned primary source evidence.",
+        "Identifies on-demand Secret informer creation and broad list/watch/cache scope, rejecting the named-Get retains-only-one claim.",
+        "Keeps actual memory, latency and OOM unverified and does not invent bytes-per-object or an authorization breach.",
+        "Proposes representative measurement and cache/client choices that preserve authorized cross-namespace references rather than mandating all live reads."
+      ]
+    },
+    {
+      "id": 7,
+      "name": "event-continuation",
+      "prompt": "Review the supplied controller decision path and watch wiring against the Widget lifecycle contract. Verify framework-dependent conclusions against the pinned dependency and distinguish static conclusions from unobserved runtime behavior.",
+      "expected_output": "Evidence-backed event-flow findings for creation, deletion and dependent readiness, with scoped remediation.",
+      "files": [
+        "assets/evaluation/case-g/controller.go"
+      ],
+      "assertions": [
+        "Finds that adding the finalizer then returning leaves initial normal work without a continuing trigger under the stated event contract.",
+        "Finds that deletionTimestamp-only updates are filtered and that builder-wide filtering also suppresses dependent status updates needed for readiness.",
+        "Verifies pinned controller-runtime v0.20.4 predicate/builder semantics and cites fixture source lines.",
+        "Recommends reliable continuation plus event-appropriate filtering, does not treat a single post-finalizer requeue as fixing every path, and does not invent observed cluster behavior or ban all generation predicates."
+      ]
+    }
+  ]
+}

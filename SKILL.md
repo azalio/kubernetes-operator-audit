@@ -2,8 +2,7 @@
 name: kubernetes-operator-audit
 description: Use when auditing Kubernetes operators. Verify practices.
 metadata:
-  version: "1.0.0"
-  source: "Michael Dame (2022), plus current upstream guidance"
+  version: "1.0.3"
 ---
 
 # Kubernetes operator audit
@@ -29,11 +28,13 @@ Record repository path, revision and dirty state; operator purpose and intended 
 
 Run `python scripts/inventory.py /absolute/repo` for read-only candidate paths and exclusions. It does NOT parse semantics or issue findings. Inspect source, rendered packaging and tests yourself. Obtain missing artifacts when possible; otherwise mark relevant checks `unknown` rather than passing them.
 
-### 2. Route the complete checklist
+### 2. Plan isolated chapter passes
 
-Read all applicable chapter references below and [modern supplement](references/modern-checks.md). Enumerate every check ID using `python scripts/validate_report.py --list-checks`. Start a coverage record for ALL IDs. Assign `pass`, `fail`, `unknown` or `not_applicable` with evidence/reason. Domain or framework-specific checks may be N/A, but require an explicit applicability explanation.
+Read [chapter execution](references/chapter-workflow.md). Run `python scripts/chapter.py plan` to assign the complete catalog to chapter passes without loading every rule. Do not read all chapters or the whole modern supplement into one reviewing context. One pass owns one chapter and its assigned modern checks; obtain its rule text with `python scripts/chapter.py context N`. Each pass inspects the operator against every assigned in-scope rule and saves its own evidence-backed report before the next pass or handoff.
 
-Use book references in chapter order on the first full audit. On targeted follow-ups, load only relevant references, set `scope.mode` to `targeted` and enumerate the selected IDs in `scope.check_ids`; do not imply a full review. Chapter 9 consolidates concepts; do not count repeated evidence as independent assurance.
+Default to one fresh worker context per chapter in numbered order, deferring chapter 9 until the other passes are available because it consolidates them. After chapter 1 establishes the common contract, independent chapters may run in parallel in separate fresh contexts; dependent checks wait for the required artifact. Use bounded concurrency, separate output files and a coordinator that reads compact summaries rather than all raw chapter evidence. If independent contexts are unavailable, checkpoint after each chapter and continue in a fresh session; do not claim that changing headings or saving a file clears context. See the chapter workflow for the fallback and resume packet.
+
+Keep all 11 chapter entries in a full audit, including explicit evidence-based N/A dispositions. Targeted requests select checks within the owning chapter passes and retain the final report's excluded controls as unknown/out_of_scope. Do not repeat the entire 88-check table in each worker: partial reports contain only that chapter's assigned IDs and use the chapter validator. The final combined report still covers all 88 IDs. Chapter 9 must not count repeated evidence as independent assurance.
 
 Track `scope.completion` separately from mode: `incomplete` while inspection remains, `blocked` only after inspection leaves genuine missing-artifact/runtime blockers, or `complete` when no in-scope unknown remains. Neither blocked nor complete permits `not_inspected`. Completion describes checklist disposition, not runtime assurance or operator health.
 
@@ -41,23 +42,25 @@ For every unknown, record a structured `resolution`: category (`not_inspected`, 
 
 ### 3. Trace behavior, not keywords
 
-For each primary resource, trace: initial creation -> dependent resources -> steady state -> spec change -> drift -> dependency failure -> restart -> deletion -> upgrade. Follow watch/predicate/mapping logic back to each input that affects desired state. Trace permissions from service account to bindings, and from CR fields to privileged effects. A substring, a passing unit test, a status flag or generated marker is not proof.
+Within the current chapter, trace the relevant portions of each primary resource's lifecycle: initial creation -> dependent resources -> steady state -> spec change -> drift -> dependency failure -> restart -> deletion -> upgrade. Follow watch/predicate/mapping logic back to inputs relevant to this chapter. Trace permissions from service account to bindings, and from CR fields to privileged effects where assigned. Save cross-chapter questions as handoffs to the owning pass rather than expanding the current context to the whole checklist. A substring, a passing unit test, a status flag or generated marker is not proof.
 
 Read the source of framework behavior at the pinned version when a finding depends on retry semantics, caching, leader election, admission, status patching or conversion. Distinguish a dangerous behavior from an absent favored helper.
 
 ### 4. Verify with adversarial scenarios
 
-Use [verification matrix](references/verification.md). Prefer cheap local tests first, then envtest/API-server tests, then an approved disposable cluster. Test convergence and idempotency, missed events, stale reads/conflicts, two CRs/namespaces, unauthorized references, restart at each side effect, deletion and finalizer retries, upgrades with old stored objects, and failure recovery for stateful operands.
+Select the current chapter's relevant scenarios from the [verification matrix](references/verification.md). Prefer cheap local tests first, then envtest/API-server tests, then an approved disposable cluster. Across the chapter passes cover convergence and idempotency, missed events, stale reads/conflicts, two CRs/namespaces, unauthorized references, restart at each side effect, deletion and finalizer retries, upgrades with old stored objects, and failure recovery for stateful operands. Coordinate shared test infrastructure; parallel static reviews do not authorize concurrent mutations.
 
 Record exact commands, environment, exit status and artifacts. If not run, say `not_run` and explain. Static reasoning supports a static finding; it does not justify claiming a runtime scenario passed. envtest normally lacks kube-controller-manager and kubelet: it cannot establish real garbage collection, scheduling, pod readiness or consensus recovery.
 
-### 5. Produce evidence-gated output
+### 5. Save each chapter, then synthesize
+
+Save `chapters/chNN.md` and `chapters/chNN.json`, validate with `python scripts/chapter.py validate N chapters/chNN.json`, and update the progress manifest. Finish evidence disposition for this pass before reporting it reviewed. After all selected passes and handoffs are accounted for, merge their coverage, resolve conflicting claims, and deduplicate findings without losing affected controls. Only then produce the final report. Do not rerun the entire review in the coordinator's combined context.
 
 Use [report format](references/report-format.md). Prioritize loss of data, privilege-boundary violations and irrecoverable wedges above style. Each finding needs all affected check IDs (`check_ids`, so deduplication does not hide failed controls), severity, applicable contract, code/manifest location, failure scenario, evidence, confidence, minimal remediation and verification criterion. Separate confirmed defects, risks requiring validation and optional improvements. Never declare unsupported SDK preferences as defects.
 
-Produce `audit.md` for humans and `audit.json` for coverage. Validate with `python scripts/validate_report.py audit.json`. This validates report completeness and shape only; it cannot prove findings or operator correctness. A report with failures can be a valid, complete audit.
+Produce `audit.md` for humans and `audit.json` for coverage. Link confirmed non-info defects to failed checks; unconfirmed risks require unknown checks unless a separate confirmed defect already establishes failure. Optional info findings cannot establish failure. Findings cannot link N/A or excluded checks. Validate with `python scripts/validate_report.py audit.json`. This validates report completeness and consistency only; it cannot prove findings or operator correctness. A report with failures can be a valid, complete audit.
 
-## Chapter references (book sequence)
+## Chapter references
 
 1. [Framework and capabilities](references/ch01.md)
 2. [Kubernetes interaction, actors and scope](references/ch02.md)
@@ -68,17 +71,17 @@ Produce `audit.md` for humans and `audit.json` for coverage. Validate with `pyth
 7. [OLM and distribution, only if applicable](references/ch07.md)
 8. [API evolution and maintenance](references/ch08.md)
 9. [Cross-cutting capability review](references/ch09.md)
-10. [Prometheus case study: configuration and watches](references/ch10.md)
+10. [Configuration, dependencies and watches](references/ch10.md)
 11. [Core operators: quorum, recovery and safety](references/ch11.md)
 
 ## Additional references
 
 - [Installation and invocation in Claude Code / Codex](references/usage.md)
+- [Isolated chapter execution and handoffs](references/chapter-workflow.md)
 - [Modern checks and compatibility cautions](references/modern-checks.md)
 - [Verification scenarios](references/verification.md)
 - [Report format and severity](references/report-format.md)
 - [Sources and provenance](references/sources.md)
-- [Chapter coverage manifest](references/book-coverage.json)
 - [Evaluation cases](references/evaluation-cases.md)
 - [Executed validation and its limits](references/validation-results.md)
 
@@ -89,5 +92,5 @@ Produce `audit.md` for humans and `audit.json` for coverage. Validate with `pyth
 - RBAC permission to act is not authorization to honor every tenant-provided reference.
 - Setting a new storage version is not migrating old objects.
 - A snapshot existing is not evidence that restoration works.
-- A 2022 example is not a current production standard; confirm target-version behavior.
+- Confirm target-version behavior before recommending implementation patterns.
 - Preserve legitimate exceptions with evidence. Do not inflate findings to hit a count or calculate a misleading overall health percentage.

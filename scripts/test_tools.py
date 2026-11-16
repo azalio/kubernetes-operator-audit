@@ -18,6 +18,53 @@ def load(name):
 
 v = load('validate_report')
 inv = load('inventory')
+chapter = load('chapter')
+
+
+class ChapterTests(unittest.TestCase):
+    def test_partition_covers_catalog_once(self):
+        route = chapter.plan()
+        ids = [key for item in route['chapters'] for key in item['check_ids']]
+        self.assertCountEqual(ids, v.catalog())
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(route['default_order'][0], 1)
+        self.assertEqual(route['default_order'][-1], 9)
+
+    def test_context_contains_only_assigned_rules(self):
+        for n in range(1, 12):
+            with self.subTest(chapter=n):
+                self.assertCountEqual(v.ID.findall(chapter.context(n)), chapter.check_ids(n))
+
+    def test_chapter_report_cannot_claim_full_audit(self):
+        ids = chapter.check_ids(3)
+        doc = {'scope': {'repository': 'fixture', 'revision': 'v1', 'mode': 'targeted',
+                         'chapter': 3, 'completion': 'complete', 'check_ids': ids, 'limitations': []},
+               'checks': [{'id': key, 'status': 'pass', 'reason': 'Inspected fixture invariant',
+                           'evidence': ['fixture.go:1']} for key in ids], 'findings': [], 'tests': []}
+        self.assertEqual(chapter.validate(doc, 3), [])
+        self.assertTrue(v.validate(doc, v.catalog()))
+        for field, value in (('mode', 'full'), ('chapter', 4), ('chapter', None)):
+            bad = copy.deepcopy(doc)
+            bad['scope'][field] = value
+            self.assertTrue(chapter.validate(bad, 3))
+        for keys in (ids[:-1], ids + ['B10-01']):
+            bad = copy.deepcopy(doc)
+            bad['checks'] = [{'id': key, 'status': 'pass', 'reason': 'Inspected',
+                              'evidence': ['fixture.go:1']} for key in keys]
+            self.assertTrue(chapter.validate(bad, 3))
+
+    def test_targeted_subset_keeps_other_chapter_controls_out_of_scope(self):
+        ids = chapter.check_ids(1)
+        doc = {'scope': {'repository': 'fixture', 'revision': 'v1', 'mode': 'targeted',
+                         'chapter': 1, 'completion': 'complete', 'check_ids': ids[:1], 'limitations': []},
+               'checks': [{'id': ids[0], 'status': 'pass', 'reason': 'Inspected', 'evidence': ['contract.md:1']}],
+               'findings': [], 'tests': []}
+        for key in ids[1:]:
+            doc['checks'].append({'id': key, 'status': 'unknown', 'reason': 'Excluded by request',
+                                 'resolution': {'category': 'out_of_scope', 'inspected_evidence': [],
+                                                'missing_requirement': 'Expanded scope',
+                                                'next_action': 'Include this control in a follow-up'}})
+        self.assertEqual(chapter.validate(doc, 1), [])
 
 class ReportTests(unittest.TestCase):
     def base(self):
@@ -151,6 +198,7 @@ class ReportTests(unittest.TestCase):
             for value in ([], {}, None, 42):
                 with self.subTest(section=section, field=field, value=value):
                     d = self.base()
+                    d['checks'][0].update(status='fail', evidence=['controller.go:1'])
                     d['findings'] = [self.finding()]
                     d['findings'][0]['check_ids'] = ['M-01']
                     d['tests'] = [{'command': 'test', 'environment': 'fixture',
@@ -164,6 +212,72 @@ class ReportTests(unittest.TestCase):
             d = self.base()
             d['checks'][0]['resolution']['category'] = value
             self.assertTrue(v.validate(d, ['M-01']))
+
+    def test_finding_status_consistency(self):
+        for severity in ('high', 'info'):
+            for confidence in ('confirmed', 'probable', 'needs_validation'):
+                for status in v.STATES:
+                    with self.subTest(severity=severity, confidence=confidence, status=status):
+                        d = self.base()
+                        d['checks'][0].update(status=status, evidence=['controller.go:1'])
+                        f = self.finding()
+                        f.update(check_ids=['M-01'], severity=severity, confidence=confidence)
+                        d['findings'] = [f]
+                        if severity == 'info':
+                            valid = status in ('pass', 'unknown')
+                        elif confidence == 'confirmed':
+                            valid = status == 'fail'
+                        else:
+                            valid = status == 'unknown'
+                        self.assertEqual(not v.validate(d, ['M-01']), valid)
+
+    def test_risk_or_improvement_can_accompany_confirmed_failure(self):
+        for severity, confidence in (('high', 'probable'), ('high', 'needs_validation'),
+                                     ('info', 'confirmed')):
+            with self.subTest(severity=severity, confidence=confidence):
+                d = self.base()
+                d['checks'][0].update(status='fail', evidence=['controller.go:1'])
+                confirmed = self.finding()
+                confirmed['check_ids'] = ['M-01']
+                extra = copy.deepcopy(confirmed)
+                extra.update(id='F-2', severity=severity, confidence=confidence)
+                d['findings'] = [extra, confirmed]
+                self.assertEqual(v.validate(d, ['M-01']), [])
+
+    def test_finding_cannot_link_excluded_control(self):
+        for severity, confidence in (('high', 'confirmed'), ('high', 'needs_validation'),
+                                     ('info', 'confirmed')):
+            with self.subTest(severity=severity, confidence=confidence):
+                d = self.base()
+                d['scope'].update(mode='targeted', completion='complete', check_ids=['M-02'])
+                d['checks'][0]['resolution']['category'] = 'out_of_scope'
+                d['checks'].append({'id': 'M-02', 'status': 'pass', 'reason': 'Inspected',
+                                    'evidence': ['controller.go:1']})
+                f = self.finding()
+                f.update(check_ids=['M-01'], severity=severity, confidence=confidence)
+                d['findings'] = [f]
+                self.assertTrue(v.validate(d, ['M-01', 'M-02']))
+
+    def test_each_deduplicated_defect_link_must_fail(self):
+        d = self.base()
+        d['checks'][0].update(status='fail', evidence=['controller.go:1'])
+        d['checks'].append({'id': 'M-02', 'status': 'pass', 'reason': 'Inspected',
+                            'evidence': ['controller.go:2']})
+        d['findings'] = [self.finding()]
+        self.assertTrue(v.validate(d, ['M-01', 'M-02']))
+
+    def test_complete_catalog_cannot_hide_confirmed_failure(self):
+        ids = v.catalog()
+        for status in ('pass', 'not_applicable'):
+            with self.subTest(status=status):
+                d = self.base()
+                d['scope']['completion'] = 'complete'
+                d['checks'] = [{'id': key, 'status': status, 'reason': 'Inspected',
+                                'evidence': ['controller.go:1']} for key in ids]
+                f = self.finding()
+                f['check_ids'] = ['M-01']
+                d['findings'] = [f]
+                self.assertTrue(v.validate(d, ids))
 
     def test_complete_catalog(self):
         ids = v.catalog()
