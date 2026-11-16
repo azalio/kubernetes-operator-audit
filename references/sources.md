@@ -22,6 +22,9 @@
 - S15: controller-runtime generation predicate, https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/predicate#GenerationChangedPredicate . Generation-only update filtering excludes metadata changes and may exclude status changes; verify each resource's generation semantics.
 - S16: controller-runtime builder event filter, https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/builder#TypedBuilder.WithEventFilter . Builder-wide predicates apply to watched objects; inspect primary and dependent watches rather than assuming a primary-only filter.
 - S17: controller-runtime reconcile contract, https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.4/pkg/reconcile#Reconciler . Error/backoff precedence over Result, timed requeue and terminal errors at this pinned version.
+- S18: Kubernetes Server-Side Apply, https://kubernetes.io/docs/reference/using-api/server-side-apply/ . Field-manager identity, conflicts, intentional force, omitted fields, CRD collection topology and coordinated ownership transfer, including replicas handoff to HPA.
+- S19: Kubernetes CRD scale subresource, https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#scale-subresource . Desired/observed replica paths, selector encoding, missing-field behavior and scaling custom resources.
+- S20: Kubernetes Horizontal Pod Autoscaling, https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/ . Scale targets, configured metrics APIs, conditions and interaction with other writers of replicas; verify target-version behavior and actual deployment dependencies.
 
 ## Comparative material
 
