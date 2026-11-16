@@ -65,7 +65,7 @@ def validate(doc, expected):
     checks = doc.get('checks')
     if not isinstance(checks, list):
         return errors + ['checks must be an array']
-    seen, failed = [], set()
+    seen, failed, check_states = [], set(), {}
     for i, check in enumerate(checks):
         if not isinstance(check, dict):
             errors.append('check %d must be an object' % i)
@@ -75,6 +75,7 @@ def validate(doc, expected):
             errors.append('check ID required')
             continue
         seen.append(key)
+        check_states[key] = status
         if status not in STATES:
             errors.append(key + ': invalid status')
         if not text(check.get('reason')):
@@ -118,7 +119,7 @@ def validate(doc, expected):
     if len(seen) != len(set(seen)):
         errors.append('duplicate check IDs')
     findings = doc.get('findings')
-    linked, finding_ids = set(), []
+    confirmed_links, finding_ids = set(), []
     if not isinstance(findings, list):
         errors.append('findings must be an array')
     else:
@@ -131,23 +132,37 @@ def validate(doc, expected):
                     errors.append('finding.' + key + ' required')
             if text(f.get('id')):
                 finding_ids.append(f['id'])
+            severity, confidence = f.get('severity'), f.get('confidence')
+            is_defect = severity in ('critical', 'high', 'medium', 'low') and confidence == 'confirmed'
+            is_risk = severity in ('critical', 'high', 'medium', 'low') and confidence in ('probable', 'needs_validation')
             ids = f.get('check_ids') if 'check_ids' in f else [f.get('check_id')]
             if not isinstance(ids, list) or not evidence(ids) or len(set(ids)) != len(ids) or not set(ids) <= expected:
                 errors.append('finding check_ids must contain unique catalog IDs')
             else:
-                linked.update(ids)
+                for key in ids:
+                    status = check_states.get(key)
+                    if key not in in_scope:
+                        errors.append(f'{key}: finding must link an in-scope check')
+                    if status == 'not_applicable':
+                        errors.append(f'{key}: finding cannot link a not_applicable check')
+                    if is_defect and status != 'fail':
+                        errors.append(f'{key}: confirmed defect requires fail status')
+                    if is_risk and status not in ('unknown', 'fail'):
+                        errors.append(f'{key}: risk requires unknown or independently confirmed fail status')
+                if is_defect:
+                    confirmed_links.update(ids)
             if 'check_ids' in f and 'check_id' in f:
                 errors.append('finding must use check_ids or check_id, not both')
-            if f.get('severity') not in ('critical', 'high', 'medium', 'low', 'info'):
+            if severity not in ('critical', 'high', 'medium', 'low', 'info'):
                 errors.append('invalid severity')
-            if f.get('confidence') not in ('confirmed', 'probable', 'needs_validation'):
+            if confidence not in ('confirmed', 'probable', 'needs_validation'):
                 errors.append('invalid confidence')
             if not evidence(f.get('evidence')):
                 errors.append('finding evidence required')
     if len(finding_ids) != len(set(finding_ids)):
         errors.append('duplicate finding IDs')
-    if failed-linked:
-        errors.append('failed checks without findings: ' + ', '.join(sorted(failed-linked)))
+    if failed-confirmed_links:
+        errors.append('failed checks without confirmed defects: ' + ', '.join(sorted(failed-confirmed_links)))
     tests = doc.get('tests')
     if not isinstance(tests, list):
         errors.append('tests must be an array')

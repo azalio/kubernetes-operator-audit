@@ -16,6 +16,9 @@ Use this matrix to select executable tests after inspecting repository test harn
 10. Upgrade from a supported old release with old CRs and stored data. Test conversion round trips, read/write through each served version, interrupted migration and supported rollback constraints. Verify storage migration before retiring versions.
 11. Apply invalid CRs to a real test API server to test schema/default/admission behavior. Plain JSON schema validation and fake clients are not complete substitutes. Test upgrade compatibility of stricter validation with existing objects.
 12. Exercise least-privilege install plus runtime identity. Use tenant-provided unauthorized references and attempt selector/namespace escape. Do not use a cluster-admin client to claim runtime RBAC correctness.
+13. Reduce the desired resource set while keeping the CR alive: remove a spec entry or disable a feature, then verify obsolete owned resources are deleted or retained according to the explicit contract. Example: disabling exposure removes the old Ingress when the API promises private access. Owner references alone do not prune children of a surviving owner. Check ownership before deletion and preserve retained data and unrelated resources.
+14. For cached clients, read a previously unwatched kind and inspect which informers, namespaces and objects are actually cached. Measure first-read startup and memory with representative object counts in an approved environment. Test an existing object excluded by a cache filter: a cache-local NotFound must not authorize unsafe adoption/overwrite or cause an unrecoverable AlreadyExists loop. Verify behavior at the pinned framework version; do not infer an observed OOM from static configuration alone.
+15. Create a CR without a finalizer and follow any add-finalizer/early-return branch through the actual event filters to the next reconcile. Verify deletionTimestamp-only and dependent-status-only updates reach the relevant controller without relying on incidental spec changes. Exercise ordinary error/backoff and successful timed-poll paths separately; returning an error alongside RequeueAfter does not establish that delay.
 
 ## Conditional scenarios
 
@@ -23,7 +26,7 @@ Use this matrix to select executable tests after inspecting repository test harn
 - OLM-distributed operators: install/upgrade through the supported OLM implementation, validate relevant artifacts and supported scopes. No OLM finding for Helm-only or raw-YAML distributions.
 - Helm-based operators: test chart rendering and reconciliation drift/values changes, ownership collisions, release upgrades and uninstall retention; don't require a Go Reconcile function.
 - Ansible/Python/custom controllers: map handlers/retries/watches and framework state to the same invariants. Missing controller-runtime boilerplate is not a defect.
-- Webhooks: exercise certificate rotation, unavailable webhook, bootstrap/recovery and batches; distinguish admission policy from conversion behavior.
+- Webhooks: exercise certificate rotation, unavailable webhook, bootstrap/recovery and conversion batches; distinguish admission policy from conversion behavior. For mutating admission, apply the mutation twice, start with an existing sidecar/user field, interleave another mutator and validate the final object. Verify no duplicate entries, erased foreign fields or dependence on a particular invocation order. Include a correct idempotent implementation as a negative control.
 - Core control-plane operators: validate recovery when dependencies they maintain are themselves unavailable, with an out-of-band runbook. Never provoke a control-plane outage without explicit isolated-lab approval.
 
 ## Test-layer limits

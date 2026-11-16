@@ -1,5 +1,7 @@
 # Audit report contract
 
+For chapter passes use the partial-report scope defined in [chapter execution](chapter-workflow.md) and validate with `scripts/chapter.py validate N`. The all-88 coverage requirement below applies to the final report; individual workers report only their chapter's assigned controls. Keep the chapter progress manifest and link partial reports from the final human report.
+
 ## Human report: audit.md
 
 1. Scope: repository/revision/dirty state, framework/version, Kubernetes matrix, installation method, primary resources, namespace/tenant boundaries, data responsibilities; exclusions and authorization.
@@ -40,7 +42,7 @@ Check record:
   }
 }
 ```
-Every check requires a nonempty `reason`. `pass` and `fail` require nonempty `evidence` strings naming inspected file:line ranges or test artifacts. `not_applicable` requires an applicability explanation; do not use N/A to hide an uninspected applicable area. `fail` must have a linked finding.
+Every check requires a nonempty `reason`. `pass` and `fail` require nonempty `evidence` strings naming inspected file:line ranges or test artifacts. `not_applicable` requires an applicability explanation; do not use N/A to hide an uninspected applicable area. `fail` must have a linked confirmed defect (non-`info` severity and `confirmed` confidence).
 
 Every `unknown` requires a `resolution` object; a generic reason alone is invalid:
 
@@ -76,6 +78,18 @@ Finding record (illustrative schema, not a discovered defect):
 ```
 
 `check_ids` is a nonempty array of unique catalog IDs. Link every affected failed control to the deduplicated finding. The legacy singular `check_id` is also accepted, but never supply both fields.
+
+### Finding/check consistency
+
+Use the existing severity and confidence fields to distinguish findings; no additional type field is required:
+
+| Finding | Linked check statuses |
+| --- | --- |
+| Confirmed defect: non-`info` severity, `confidence=confirmed` | Every linked check must be `fail` |
+| Risk: non-`info` severity, `confidence=probable` or `needs_validation` | `unknown`, or `fail` supported by a separate confirmed defect |
+| Optional improvement: `severity=info`, any valid confidence | `pass`, `unknown`, or `fail` supported by a separate confirmed defect |
+
+Every failed check needs at least one confirmed defect; risks and improvements cannot establish failure on their own. A failed control may also have unresolved risks or optional improvements: retain the confirmed failure rather than downgrading it to unknown. Every finding must link only applicable, in-scope checks; `not_applicable` and targeted exclusions cannot have findings. Expand the declared scope before including an incidental finding about an excluded control. These rules also apply to every ID of a deduplicated finding and to the legacy `check_id` field.
 
 Test record:
 ```json
