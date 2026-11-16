@@ -22,6 +22,8 @@ Use this matrix to select executable tests after inspecting repository test harn
 
 ## Conditional scenarios
 
+- SSA (chapter 3, M-04/M-06): on a real test API server, interleave two field managers on the same object. Verify disjoint fields survive, conflicting writes follow the ownership contract, and authorized force changes only intended fields. Reapply unchanged intent, omit a previously owned field, and include an ordinary patch/update writer. Inspect managedFields and resulting values, including shared condition/list entries under the installed schema. Include a valid narrow forced apply as a negative control; force itself is not a defect. For topology upgrades, hand chapter 8 evidence from existing objects, not just newly created ones.
+- Scaling/HPA (chapter 3, M-04/M-06): for CR-targeted scaling, exercise GET/UPDATE of /scale with populated and missing replica/selector fields; check actual versus desired replicas and selector isolation across two CRs. For either CR- or child-targeted HPA, change load and observe the selected metrics API, HPA conditions, scaling decision and operator response. Interleave reconciles and, where supported, switch manual -> automatic -> manual without repeated resets or unintended defaulting during ownership transfer. Include a valid child-targeted HPA with no parent scale subresource as a negative control. API-server tests cover /scale and apply semantics; HPA convergence requires a running autoscaler, the configured metrics provider and representative workloads in an approved environment.
 - Stateful operands: restore a backup into an isolated environment, verify application-level data/invariants, measure RPO/RTO, test quorum-preserving member changes and unavailable members. Ensure test data only.
 - OLM-distributed operators: install/upgrade through the supported OLM implementation, validate relevant artifacts and supported scopes. No OLM finding for Helm-only or raw-YAML distributions.
 - Helm-based operators: test chart rendering and reconciliation drift/values changes, ownership collisions, release upgrades and uninstall retention; don't require a Go Reconcile function.
@@ -32,8 +34,8 @@ Use this matrix to select executable tests after inspecting repository test harn
 ## Test-layer limits
 
 - Unit/pure tests: desired-object construction, conversions, validation and decision branches; do not prove cluster effects.
-- Fake client: convenient state store, potentially different defaults, generation, status and conflict semantics. Check pinned implementation.
-- envtest: real API storage/admission semantics, but normally no GC, scheduler, kubelet or workloads. Child deletion by owner GC needs a fuller environment.
+- Fake client: convenient state store, potentially different defaults, generation, status, apply ownership and scale/conflict semantics. Check pinned implementation; it cannot by itself establish API-server SSA or /scale behavior.
+- envtest: real API storage/admission semantics, but normally no GC, scheduler, kubelet, HPA controller, metrics provider or workloads. Child deletion by owner GC and actual HPA convergence need a fuller environment.
 - Disposable cluster E2E: establishes behavior only for the recorded version, permissions, topology and workload. One green scenario does not prove partition or scale safety.
 
 ## Evidence economy

@@ -2,7 +2,7 @@
 name: kubernetes-operator-audit
 description: Kubernetes operator code review and production-readiness audit. Use to review reconciliation, finalizers, CRDs, RBAC, webhooks, upgrades and recovery in controller-runtime, Kubebuilder, Operator SDK or other operator frameworks. Produces evidence-backed Markdown and JSON reports through isolated chapter reviews.
 metadata:
-  version: "1.0.4"
+  version: "1.0.5"
 ---
 
 # Kubernetes operator audit

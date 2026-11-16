@@ -1,5 +1,13 @@
 # Validation results
 
+## SSA and autoscaling audit guidance (2026-11-16)
+
+Version 1.0.5 expands chapter 3's existing M-04/M-06 checks with SSA field ownership, conflict handling, collection topology and HPA scaling contracts. The verification matrix adds interleaved-writer, ownership-transfer and scale/HPA scenarios, including valid forced apply and child-targeted HPA as negative controls. Rules were checked against the Kubernetes sources S18-S20.
+
+All 26 existing Python tests, the system skill-creator validator, local-link checks and git diff --check passed. Chapter routing still partitions 88 unique IDs across 11 chapters. Emitted-context inspection confirmed the added SSA and scale rules appear only in chapter 3, whose assigned supplemental IDs remain M-01/M-04/M-06. No helper code or report schema changed.
+
+The new scenarios are verification instructions, not executed operator tests. No live API-server, HPA, workload or new model-behavior evaluation was run for this documentation update.
+
 ## Isolated chapter workflow (2026-11-16)
 
 Version 1.0.2 replaces the instruction to read all applicable references together with one fresh reviewing context per chapter. Serial execution is the default; independent passes may run in bounded parallel batches. Chapter 9 consolidates the other passes last. Modern checks are assigned to chapter owners, and each pass saves a partial report plus evidence before synthesis. Hosts without delegation must use a fresh-session handoff rather than pretend that a checkpoint clears model context.
